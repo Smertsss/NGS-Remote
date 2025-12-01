@@ -1,0 +1,10 @@
+aiogram
+pydantic-settings
+httpx
+pandas
+requests
+pillow
+openpyxl
+aiohttp
+pydantic
+reportlab
