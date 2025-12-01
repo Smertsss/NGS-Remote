@@ -1,10 +1,11 @@
 aiogram
 pydantic-settings
 httpx
-pandas
-requests
-pillow
-openpyxl
 aiohttp
-pydantic
+pandas
+openpyxl
 reportlab
+pillow
+pydantic
+requests
+python-dotenv

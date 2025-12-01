@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: ngs-telegram-bot
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Можно добавить переменные окружения для токена, если нужно
+      # - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep python | grep -v grep || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    #   start_period: 40s
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge

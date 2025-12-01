@@ -7,10 +7,33 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from TelegramBot.config import TOKEN
 from src.handlers import register_all_handlers
+from src.middlewares import register_middlewares
 from src.task_manage import TaskManager
+from src.api.client import get_auth_client
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+
+async def on_startup():
+    """Действия при запуске бота"""
+    logger.info("Starting bot...")
+
+    # Проверяем подключение к сервису авторизации
+    try:
+        auth_client = await get_auth_client()
+        # Пробуем сделать тестовый запрос
+        test_user = await auth_client.get_user_by_chat_id(961419471)  # тестовый ID
+        if test_user is None:
+            logger.info("Auth service is accessible (test user not found - expected)")
+        else:
+            logger.info(f"Auth service is accessible, found test user: {test_user.id}")
+    except Exception as e:
+        logger.warning(f"Cannot connect to auth service on startup: {e}")
+        logger.warning("Bot will continue, but auth features may not work")
 
 
 async def on_shutdown(dp: Dispatcher, bot: Bot):
@@ -30,6 +53,14 @@ async def on_shutdown(dp: Dispatcher, bot: Bot):
     if task_manager._bg_tasks:
         await asyncio.gather(*task_manager._bg_tasks.values(), return_exceptions=True)
 
+    # Закрываем клиент авторизации
+    try:
+        auth_client = await get_auth_client()
+        await auth_client.client.aclose()
+        logger.info("Auth client closed")
+    except Exception as e:
+        logger.error(f"Error closing auth client: {e}")
+
     # Закрываем сессию бота
     await bot.session.close()
     logger.info("Бот завершил работу")
@@ -40,8 +71,14 @@ async def main():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
+    # Регистрация мидлварей
+    await register_middlewares(dp)
+
     # Регистрация всех хэндлеров
     register_all_handlers(dp)
+
+    # Действия при запуске
+    await on_startup()
 
     # Обработка сигналов завершения
     def signal_handler():
@@ -49,7 +86,6 @@ async def main():
         asyncio.create_task(on_shutdown(dp, bot))
         sys.exit(0)
 
-    # Регистрация обработчиков сигналов
     signal.signal(signal.SIGINT, lambda s, f: signal_handler())
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler())
 

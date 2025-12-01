@@ -7,6 +7,13 @@ def start_kb():
     ])
     return kb
 
+def registration_kb():
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Да, зарегистрироваться", callback_data="reg_confirm")],
+        [InlineKeyboardButton(text="❌ Нет, позже", callback_data="reg_cancel")]
+    ])
+    return kb
+
 def tool_kb():
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("QIIME2", callback_data="tool:QIIME2"),
