@@ -44,7 +44,6 @@ async def handle_cohort_task_list(message: types.Message, state: FSMContext, bot
         await state.clear()
         return
 
-    # проверка задач
     task_manager = TaskManager()
     tasks = []
     for tid in ids:

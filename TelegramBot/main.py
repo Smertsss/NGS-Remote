@@ -25,8 +25,7 @@ async def on_startup():
     # Проверяем подключение к сервису авторизации
     try:
         auth_client = await get_auth_client()
-        # Пробуем сделать тестовый запрос
-        test_user = await auth_client.get_user_by_chat_id(961419471)  # тестовый ID
+        test_user = await auth_client.get_user_by_chat_id(0)  # тестовый ID
         if test_user is None:
             logger.info("Auth service is accessible (test user not found - expected)")
         else:
@@ -40,7 +39,6 @@ async def on_shutdown(dp: Dispatcher, bot: Bot):
     """Функция для корректного завершения работы"""
     logger.info("Завершение работы бота...")
 
-    # Отменяем все фоновые задачи
     task_manager = TaskManager()
     logger.info(f"Отмена фоновых задач... Всего задач: {len(task_manager._bg_tasks)}")
 
@@ -49,11 +47,9 @@ async def on_shutdown(dp: Dispatcher, bot: Bot):
             bg_task.cancel()
             logger.info(f"Отменена задача: {task_id}")
 
-    # Ждем завершения всех задач
     if task_manager._bg_tasks:
         await asyncio.gather(*task_manager._bg_tasks.values(), return_exceptions=True)
 
-    # Закрываем клиент авторизации
     try:
         auth_client = await get_auth_client()
         await auth_client.client.aclose()
@@ -61,7 +57,6 @@ async def on_shutdown(dp: Dispatcher, bot: Bot):
     except Exception as e:
         logger.error(f"Error closing auth client: {e}")
 
-    # Закрываем сессию бота
     await bot.session.close()
     logger.info("Бот завершил работу")
 
@@ -71,16 +66,12 @@ async def main():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # Регистрация мидлварей
     await register_middlewares(dp)
 
-    # Регистрация всех хэндлеров
     register_all_handlers(dp)
 
-    # Действия при запуске
     await on_startup()
 
-    # Обработка сигналов завершения
     def signal_handler():
         logger.info("Получен сигнал завершения")
         asyncio.create_task(on_shutdown(dp, bot))

@@ -18,9 +18,7 @@ class AuthMiddleware(BaseMiddleware):
             event: TelegramObject,
             data: Dict[str, Any]
     ) -> Any:
-        # Проверяем, что это обновление с пользователем
         if isinstance(event, Update):
-            # Получаем пользователя из обновления
             user = None
             if event.message:
                 user = event.message.from_user
@@ -28,13 +26,11 @@ class AuthMiddleware(BaseMiddleware):
                 user = event.callback_query.from_user
             elif event.edited_message:
                 user = event.edited_message.from_user
-            # Добавьте другие типы сообщений по необходимости
 
             if not user:
                 logger.debug("Update without from_user - skipping auth check")
                 return await handler(event, data)
         else:
-            # Если это не Update, пропускаем
             return await handler(event, data)
 
         logger.info(f"Processing user: {user.id}, username: {user.username}")

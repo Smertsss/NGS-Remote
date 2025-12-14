@@ -20,7 +20,6 @@ async def cmd_start(message: Message, state: FSMContext, db_user: Optional[UserR
     name = user.first_name or "пользователь"
 
     if db_user:
-        # Пользователь уже зарегистрирован
         welcome_name = db_user.name or name
 
         text = (
@@ -36,7 +35,6 @@ async def cmd_start(message: Message, state: FSMContext, db_user: Optional[UserR
         )
         await message.answer(text, reply_markup=start_kb())
     else:
-        # Пользователь не зарегистрирован
         text = (
             "👋 Добро пожаловать!\n\n"
             f"Привет, {name}!\n"
@@ -55,7 +53,6 @@ async def cmd_registration(message: Message, state: FSMContext):
     try:
         auth_client = await get_auth_client()
 
-        # Создаем данные пользователя
         user_data = UserCreate(
             chat_id=user.id,
             name=user.first_name or f"User_{user.id}",
@@ -135,7 +132,6 @@ async def callback_registration_confirm(callback_query: CallbackQuery):
             "Пожалуйста, подождите."
         )
 
-        # Запускаем процесс регистрации
         user = callback_query.from_user
 
         try:

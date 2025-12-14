@@ -59,15 +59,6 @@ class AuthServiceClient:
                 await asyncio.sleep(API_RETRY_DELAY)
 
     async def get_user_by_chat_id(self, chat_id: int) -> Optional[UserResponse]:
-        """
-        Получает пользователя по chat_id
-
-        Args:
-            chat_id: ID пользователя в Telegram
-
-        Returns:
-            UserResponse или None если пользователь не найден
-        """
         try:
             logger.info(f"GET request to /users/{chat_id}")
             response = await self._make_request("GET", f"/users/{chat_id}")
@@ -76,8 +67,6 @@ class AuthServiceClient:
             if response.status_code == 200:
                 data = response.json()
                 logger.info(f"User data received for {chat_id}: {data}")
-                # Убедитесь, что сервер возвращает поля в правильном формате
-                # Если сервер возвращает camelCase, нужно преобразовать
                 return UserResponse(**data)
             elif response.status_code == 404:
                 logger.info(f"User {chat_id} not found (404)")
@@ -85,7 +74,7 @@ class AuthServiceClient:
             else:
                 error_data = response.json() if response.text else {}
                 logger.error(f"Unexpected status for user {chat_id}: {response.status_code}, Error: {error_data}")
-                return None  # Возвращаем None при других ошибках, чтобы не блокировать работу
+                return None
 
         except httpx.HTTPError as e:
             logger.error(f"HTTP error while getting user {chat_id}: {e}")
@@ -95,18 +84,7 @@ class AuthServiceClient:
             return None
 
     async def create_user(self, user_data: UserCreate) -> UserResponse:
-        """
-        Создаёт нового пользователя
-
-        Args:
-            user_data: Данные пользователя
-
-        Returns:
-            Созданный пользователь
-        """
         try:
-            # ИСПРАВЛЕНО: используем by_alias=False или просто dict()
-            # чтобы отправлять snake_case (chat_id), а не camelCase (chatId)
             json_data = user_data.dict(exclude_none=True)
             logger.info(f"Sending POST request to create user: {json_data}")
 
@@ -126,7 +104,6 @@ class AuthServiceClient:
                 error_data = response.json()
                 logger.error(f"Failed to create user. Status: {response.status_code}, Error: {error_data}")
 
-                # Проверяем, не является ли ошибка "пользователь уже существует"
                 error_detail = error_data.get('detail', '')
                 error_detail_str = str(error_detail).lower()
 
@@ -156,18 +133,6 @@ class AuthServiceClient:
             username: Optional[str] = None,
             telegram_username: Optional[str] = None
     ) -> UserResponse:
-        """
-        Получает пользователя, если не существует - создаёт
-
-        Args:
-            chat_id: ID пользователя в Telegram
-            name: Имя пользователя
-            username: Юзернейм
-            telegram_username: Юзернейм в Telegram
-
-        Returns:
-            UserResponse
-        """
         # Пытаемся получить пользователя
         user = await self.get_user_by_chat_id(chat_id)
 
