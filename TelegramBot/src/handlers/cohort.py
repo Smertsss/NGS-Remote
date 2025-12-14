@@ -1,18 +1,27 @@
 import logging
 from datetime import datetime
 from io import BytesIO
+from typing import Optional
 from aiogram import Dispatcher, F, types, Bot
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
 
 from ..states import CreateCohortStates
 from ..task_manage import TaskManager, TaskStatus
+from ..api.models import UserResponse
 
 logger = logging.getLogger(__name__)
 
 
-async def cmd_create_cohort(message: types.Message, state: FSMContext):
+async def cmd_create_cohort(message: types.Message, state: FSMContext, db_user: Optional[UserResponse] = None):
     """Начало создания когорты"""
+    if not db_user:
+        await message.answer(
+            "❌ Для создания когорты необходимо зарегистрироваться.\n"
+            "Введите команду: /registration"
+        )
+        return
+
     await message.answer(
         "Создание когорты: отправьте список task_id через запятую (минимум 10 задач), которые нужно объединить в когортный отчёт.\n"
         "Пример: taskid1,taskid2,taskid3,..."
@@ -20,8 +29,13 @@ async def cmd_create_cohort(message: types.Message, state: FSMContext):
     await state.set_state(CreateCohortStates.waiting_task_list)
 
 
-async def handle_cohort_task_list(message: types.Message, state: FSMContext, bot: Bot):
+async def handle_cohort_task_list(message: types.Message, state: FSMContext, bot: Bot,
+                                  db_user: Optional[UserResponse] = None):
     """Обработка списка задач для когорты"""
+    if not db_user:
+        await message.answer("❌ Пользователь не авторизован.")
+        return
+
     raw = message.text.strip()
     ids = [s.strip() for s in raw.split(",") if s.strip()]
 

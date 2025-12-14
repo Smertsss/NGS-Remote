@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 from aiogram import Dispatcher, F, types, Bot
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
@@ -8,29 +9,41 @@ from ..states import RunAnalysisStates
 from ..task_manage import TaskManager
 from ..keyboards import tool_kb, reference_kb, clustering_kb, confirm_kb
 from ..utils.analysis_simulator import simulate_analysis_and_generate_report
+from ..api.models import UserResponse
 
 logger = logging.getLogger(__name__)
 
 
-async def cmd_run_analysis(message: types.Message, state: FSMContext):
+async def cmd_run_analysis(message: types.Message, state: FSMContext, db_user: Optional[UserResponse] = None):
     """Начало диалога запуска анализа"""
+    if not db_user:
+        await message.answer(
+            "❌ Для запуска анализа необходимо зарегистрироваться.\n"
+            "Введите команду: /registration"
+        )
+        return
+
     await state.set_state(RunAnalysisStates.waiting_fastq)
     await message.answer(
-        "Запуск нового анализа: загрузите FASTQ (или архив FASTQ) в виде файла (прикрепите документ).",
+        f"Запуск нового анализа для пользователя {db_user.id}.\n"
+        "Загрузите FASTQ (или архив FASTQ) в виде файла (прикрепите документ).",
         reply_markup=types.ReplyKeyboardRemove()
     )
 
 
-async def handle_fastq_upload(message: types.Message, state: FSMContext):
+async def handle_fastq_upload(message: types.Message, state: FSMContext, db_user: Optional[UserResponse] = None):
     """Обработка загрузки FASTQ файла"""
+    if not db_user:
+        await message.answer("❌ Пользователь не авторизован.")
+        return
+
     if not message.document:
         await message.answer("Пожалуйста, пришлите файл как документ (не фото).")
         return
 
     doc = message.document
     try:
-        owner = str(message.from_user.id)
-        local_path = f"uploads/{owner}_{doc.file_name}"
+        local_path = f"uploads/user_{db_user.id}_{doc.file_name}"
         await message.document.download(destination_file=local_path)
     except Exception as e:
         logger.exception("Ошибка при сохранении файла")
@@ -42,8 +55,13 @@ async def handle_fastq_upload(message: types.Message, state: FSMContext):
     await message.answer("Файл принят. Выберите инструмент анализа:", reply_markup=tool_kb())
 
 
-async def callback_tool_ref_cluster(callback_query: types.CallbackQuery, state: FSMContext):
+async def callback_tool_ref_cluster(callback_query: types.CallbackQuery, state: FSMContext,
+                                    db_user: Optional[UserResponse] = None):
     """Обработка выбора инструмента, референса и кластеризации"""
+    if not db_user:
+        await callback_query.answer("❌ Пользователь не авторизован.", show_alert=True)
+        return
+
     data = callback_query.data or ""
 
     if data.startswith("tool:"):
@@ -90,30 +108,47 @@ async def callback_tool_ref_cluster(callback_query: types.CallbackQuery, state: 
         await callback_query.answer()
 
 
-async def callback_confirm_run(callback_query: types.CallbackQuery, bot: Bot, state: FSMContext, dp: Dispatcher):
+async def callback_confirm_run(callback_query: types.CallbackQuery, bot: Bot, state: FSMContext,
+                               db_user: Optional[UserResponse] = None):
     """Подтверждение запуска анализа"""
+    if not db_user:
+        await callback_query.answer("❌ Пользователь не авторизован.", show_alert=True)
+        return
+
     data_all = await state.get_data()
-    owner = str(callback_query.from_user.id)
-    filename = data_all.get("filename", "uploaded.fastq")
 
     params = {
         "instrument": data_all.get("instrument"),
         "reference": data_all.get("reference"),
-        "clustering": data_all.get("clustering")
+        "clustering": data_all.get("clustering"),
+        "user_id": db_user.id
     }
 
     file_path = data_all.get("uploaded_file")
-    task_manager = TaskManager()
-    task_id = task_manager.create_task(owner, filename, params, file_path=file_path)
+    filename = data_all.get("filename", "uploaded.fastq")
 
-    task_manager.add_log(task_id, "Задача создана пользователем.")
+    task_manager = TaskManager()
+    task_id = task_manager.create_task(
+        owner_id=str(callback_query.from_user.id),
+        filename=filename,
+        params=params,
+        file_path=file_path
+    )
+
+    task_meta = task_manager.get(task_id)
+    if task_meta:
+        task_meta.params["db_user_id"] = db_user.id
+
+    task_manager.add_log(task_id, f"Задача создана пользователем {db_user.id}.")
+
     await callback_query.message.edit_text(
-        f"Задача создана. Task ID: {task_id}\nСтатус: pending. Вам придёт уведомление по завершению."
+        f"Задача создана. Task ID: {task_id}\n"
+        f"Пользователь: {db_user.name or db_user.telegram_username or 'Unknown'}\n"
+        f"Статус: pending. Вам придёт уведомление по завершению."
     )
     await callback_query.answer()
 
-    # запуск фоновой обработки с передачей dp
-    bg = asyncio.create_task(simulate_analysis_and_generate_report(task_id, bot, dp))
+    bg = asyncio.create_task(simulate_analysis_and_generate_report(task_id, bot, dp=None))
     task_manager.store_bg_task(task_id, bg)
     await state.clear()
 

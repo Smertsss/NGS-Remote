@@ -1,13 +1,23 @@
+import types
 from io import BytesIO
-from aiogram import types, Dispatcher, F, Bot
+from typing import Optional
+from aiogram import Dispatcher, F, Bot
 from aiogram.filters.command import Command
 from aiogram.types import Message
 
 from ..task_manage import TaskManager, TaskStatus
+from ..api.models import UserResponse
 
 
-async def cmd_get_report(message: Message, bot: Bot):
+async def cmd_get_report(message: Message, bot: Bot, db_user: Optional[UserResponse] = None):
     """Получение отчёта по задаче"""
+    if not db_user:
+        await message.answer(
+            "❌ Для получения отчётов необходимо зарегистрироваться.\n"
+            "Введите команду: /registration"
+        )
+        return
+
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer("Использование: /get_report <task_id>")
@@ -25,9 +35,10 @@ async def cmd_get_report(message: Message, bot: Bot):
         await message.answer(f"Отчёт по задаче {task_id} ещё не готов. Текущий статус: {t.status.value}")
         return
 
-    bio = BytesIO(t.result.bytes)
+    result = t.result
+    bio = BytesIO(result.bytes)
     bio.seek(0)
-    filename = t.result.filename
+    filename = result.filename
     await bot.send_document(
         chat_id=message.chat.id,
         document=types.InputFile(bio, filename=filename)

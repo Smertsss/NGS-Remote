@@ -1,12 +1,21 @@
+from typing import Optional
 from aiogram import Dispatcher, F
 from aiogram.filters.command import Command
 from aiogram.types import Message
 
 from ..task_manage import TaskManager, TaskStatus
+from ..api.models import UserResponse
 
 
-async def cmd_status(message: Message):
+async def cmd_status(message: Message, db_user: Optional[UserResponse] = None):
     """Проверка статуса задачи"""
+    if not db_user:
+        await message.answer(
+            "❌ Для просмотра статуса задач необходимо зарегистрироваться.\n"
+            "Введите команду: /registration"
+        )
+        return
+
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer("Использование: /status <task_id>")
@@ -40,8 +49,15 @@ async def cmd_status(message: Message):
     await message.answer(text)
 
 
-async def cmd_list_analyses(message: Message):
+async def cmd_list_analyses(message: Message, db_user: Optional[UserResponse] = None):
     """Список задач с фильтрацией"""
+    if not db_user:
+        await message.answer(
+            "❌ Для просмотра списка задач необходимо зарегистрироваться.\n"
+            "Введите команду: /registration"
+        )
+        return
+
     args = message.text.split(maxsplit=1)
     filters = {}
 
@@ -67,8 +83,15 @@ async def cmd_list_analyses(message: Message):
     await message.answer("Ваши задачи:\n" + "\n".join(lines))
 
 
-async def cmd_cancel(message: Message):
+async def cmd_cancel(message: Message, db_user: Optional[UserResponse] = None):
     """Отмена задачи"""
+    if not db_user:
+        await message.answer(
+            "❌ Для отмены задач необходимо зарегистрироваться.\n"
+            "Введите команду: /registration"
+        )
+        return
+
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer("Использование: /cancel <task_id>")

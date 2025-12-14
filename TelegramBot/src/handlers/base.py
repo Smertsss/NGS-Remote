@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 async def cmd_start(message: Message, state: FSMContext, db_user: Optional[UserResponse] = None):
     """Обработчик команды /start"""
-    logger.info(f"Command /start received from user {message.from_user.id}")
     await state.clear()
 
     user = message.from_user
@@ -27,7 +26,6 @@ async def cmd_start(message: Message, state: FSMContext, db_user: Optional[UserR
         text = (
             "Я — бот для запуска 16S-пайплайна и управления задачами анализа.\n\n"
             f"Привет, {welcome_name}!\n"
-            f"Ваш ID в системе: {db_user.id}\n\n"
             "Что я умею:\n"
             "- Запуск анализа одного FASTQ-файла (/run_analysis)\n"
             "- Создание когортного отчёта из нескольких завершённых задач (/create_cohort)\n"
@@ -50,7 +48,6 @@ async def cmd_start(message: Message, state: FSMContext, db_user: Optional[UserR
 
 async def cmd_registration(message: Message, state: FSMContext):
     """Обработчик команды /registration"""
-    logger.info(f"Command /registration received from user {message.from_user.id}")
     await state.clear()
 
     user = message.from_user
@@ -58,7 +55,7 @@ async def cmd_registration(message: Message, state: FSMContext):
     try:
         auth_client = await get_auth_client()
 
-        # Создаем данные пользователя - используем правильные имена полей
+        # Создаем данные пользователя
         user_data = UserCreate(
             chat_id=user.id,
             name=user.first_name or f"User_{user.id}",
@@ -66,7 +63,7 @@ async def cmd_registration(message: Message, state: FSMContext):
             telegram_username=user.username
         )
 
-        logger.info(f"Creating user with data: {user_data.dict(by_alias=True)}")
+        logger.info(f"Creating user with data: {user_data.dict()}")
 
         # Отправляем POST запрос на создание пользователя
         new_user = await auth_client.create_user(user_data)
@@ -123,9 +120,6 @@ async def cmd_help(message: Message, db_user: Optional[UserResponse] = None):
         "/cancel <task_id> — отменить задачу, если она в pending или running\n\n"
     )
 
-    if db_user:
-        text += f"Ваш ID в системе: {db_user.id}\n\n"
-
     text += "Если нужно — свяжитесь с техподдержкой: support@example.com"
 
     await message.answer(text)
@@ -154,13 +148,12 @@ async def callback_registration_confirm(callback_query: CallbackQuery):
                 telegram_username=user.username
             )
 
-            logger.info(f"Creating user via callback: {user_data.dict(by_alias=True)}")
+            logger.info(f"Creating user via callback: {user_data.dict()}")
 
             new_user = await auth_client.create_user(user_data)
 
             await callback_query.message.edit_text(
                 f"✅ Регистрация прошла успешно!\n\n"
-                f"Ваш ID в системе: {new_user.id}\n"
                 f"Теперь введите /start для начала работы."
             )
 
@@ -215,6 +208,30 @@ async def callback_start_buttons(callback_query: CallbackQuery, db_user: Optiona
     await callback_query.answer()
 
 
+async def cmd_status_check(message: Message, db_user: Optional[UserResponse] = None):
+    """Проверка статуса пользователя (для отладки)"""
+    user = message.from_user
+
+    text = (
+        f"👤 Статус пользователя:\n"
+        f"Telegram ID: {user.id}\n"
+        f"Имя: {user.first_name}\n"
+        f"Юзернейм: {user.username}\n"
+        f"---\n"
+        f"В базе данных: {'✅ Да' if db_user else '❌ Нет'}\n"
+    )
+
+    if db_user:
+        text += (
+            f"ID в системе: {db_user.id}\n"
+            f"Chat ID в базе: {db_user.chat_id}\n"
+            f"Имя в базе: {db_user.name or 'Не указано'}\n"
+            f"Юзернейм в базе: {db_user.username or 'Не указан'}\n"
+        )
+
+    await message.answer(text)
+
+
 def register_base_handlers(dp: Dispatcher):
     """Регистрация базовых хэндлеров"""
     logger.info("Registering base handlers...")
@@ -222,6 +239,7 @@ def register_base_handlers(dp: Dispatcher):
     dp.message.register(cmd_start, Command(commands=["start"]))
     dp.message.register(cmd_registration, Command(commands=["registration"]))
     dp.message.register(cmd_help, Command(commands=["help"]))
+    dp.message.register(cmd_status_check, Command(commands=["status_check"]))
     dp.callback_query.register(callback_registration_confirm, F.data.in_(["reg_confirm", "reg_cancel"]))
     dp.callback_query.register(callback_start_buttons, F.data.in_(["start_analysis", "show_help"]))
 
